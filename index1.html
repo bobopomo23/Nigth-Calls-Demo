@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nigth Calls - By Joselupo329 v11 (Revisado)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; color: #fff; font-family: 'Courier New', Courier, monospace; }
+        canvas { display: block; }
+        #blocker {
+            position: absolute; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.8); display: flex;
+            justify-content: center; align-items: center; text-align: center; z-index: 102;
+        }
+        #instructions {
+            width: 50%; cursor: pointer; padding: 20px;
+            border: 1px solid #fff; border-radius: 10px;
+        }
+        #info {
+            position: absolute; top: 10px; width: 100%; text-align: center;
+            z-index: 100; display: block; font-size: 16px;
+        }
+        #messageBox {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7); color: #ff4444; padding: 15px;
+            border-radius: 8px; border: 1px solid #ff4444; font-size: 18px;
+            text-align: center; display: none; z-index: 101; max-width: 80%;
+        }
+        body.locked #blocker { display: none; }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+            border: 1px solid white; border-radius: 50%; transform: translate(-50%, -50%);
+            z-index: 99; display: none;
+        }
+         body.locked #crosshair { display: block; }
+         #screamerOverlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0); background-size: contain;
+            background-repeat: no-repeat; background-position: center center;
+            z-index: 200; display: none; pointer-events: none;
+            transition: background-color 0.1s ease-in-out;
+         }
+    </style>
+</head>
+<body>
+    <div id="blocker">
+        <div id="instructions">
+            <h1>Nigth Calls</h1>
+            <p>Encuentra el objeto rojo en el dormitorio.</p>
+            <p>Movimiento: W, A, S, D</p>
+            <p>Mirar: Ratón</p>
+            <p>Interactuar: Clic Izquierdo</p>
+            <p>(Haz clic aquí para empezar)</p>
+        </div>
+    </div>
+    <div id="info">Encuentra el objeto rojo...</div>
+    <div id="messageBox"></div>
+    <div id="crosshair"></div>
+    <div id="screamerOverlay"></div>
+
+    <audio id="sonidoTimbre" src="sounds/ring.mp3" loop preload="auto"></audio>
+    <audio id="sonidoScreamer" src="sounds/screamer.mp3" preload="auto"></audio>
+
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+        import { FilmPass } from 'three/addons/postprocessing/FilmPass.js';
+
+        let escena, camara, renderer, composer;
+        let controles;
+        let mallaTelefono, luzTelefono, objetoTarea;
+        let luzParpadeante;
+        let raycaster, raton;
+        let telefonoSonando = false;
+        let intervaloTimbre;
+        const cajaMensajes = document.getElementById('messageBox');
+        const reloj = new THREE.Clock();
+        const cargadorTexturas = new THREE.TextureLoader();
+        const cargadorTexturasCubo = new THREE.CubeTextureLoader();
+        let moverseAdelante = false, moverseAtras = false, moverseIzquierda = false, moverseDerecha = false;
+        const velocidad = new THREE.Vector3();
+        const direccion = new THREE.Vector3();
+        const velocidadJugador = 5.0;
+        const alturaJugador = 1.6;
+        const radioColisionJugador = 0.3;
+        let tareaCompletada = false;
+        const bloqueador = document.getElementById('blocker');
+        const instrucciones = document.getElementById('instructions');
+        const sonidoTimbre = document.getElementById('sonidoTimbre');
+        const sonidoScreamer = document.getElementById('sonidoScreamer');
+        const overlayScreamer = document.getElementById('screamerOverlay');
+        const objetosColisionables = [];
+
+        let materialSuelo, materialPared, materialMuebles, materialMarcoVentana, materialVidrio, materialSueloExterior, materialTecho;
+        let texturaTelefono, texturaGabinete, texturaElectrodomestico, texturaScreamer;
+
+        let anchoPrincipal, profundidadPrincipal, anchoCocina, profundidadCocina, anchoDormitorio, profundidadDormitorio;
+
+        let llamadasRespondidas = 0;
+        let screamerDormitorioActivado = false;
+        let screamerLlamadaActivado = false;
+        let posicionTriggerDormitorio;
+        const radioTriggerDormitorio = 1.5;
+
+
+        const BadTVShader = {
+             uniforms: {
+                "tDiffuse": { value: null }, "time": { value: 0.0 }, "distortion": { value: 2.5 },
+                "distortion2": { value: 4.0 }, "speed": { value: 0.2 }, "rollSpeed":{ value: 0.1 },
+            },
+            vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }`,
+            fragmentShader: `
+                uniform sampler2D tDiffuse; uniform float time; uniform float distortion; uniform float distortion2;
+                uniform float speed; uniform float rollSpeed; varying vec2 vUv;
+                float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
+                void main() {
+                    vec2 p = vUv; float ty = time*speed; float yt = p.y - ty;
+                    float offset = sin(yt*distortion + time * rollSpeed)*0.03;
+                    offset += rand(vec2(time, p.y)) * 0.02 - 0.01;
+                    p.x += sin(p.y * distortion2 + time) * (0.01 + offset * 0.5);
+                     if (mod(time + p.y * 5.0 + rand(vec2(time, 0.0)) * 2.0, 2.5) < 0.1) {
+                        p.x += rand(vec2(time, p.y)) * 0.1 - 0.05; }
+                    if(p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }
+                    else { gl_FragColor = texture2D(tDiffuse, p); }
+                }`
+        };
+
+
+        function init() {
+            escena = new THREE.Scene();
+            escena.fog = new THREE.Fog(0x000000, 3, 25);
+            camara = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camara.position.set(0, alturaJugador, 5);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 0.75;
+            document.body.appendChild(renderer.domElement);
+
+            controles = new PointerLockControls(camara, document.body);
+            instrucciones.addEventListener('click', () => { controles.lock(); });
+            controles.addEventListener('lock', () => { instrucciones.style.display = 'none'; bloqueador.style.display = 'none'; document.body.classList.add('locked'); });
+            controles.addEventListener('unlock', () => { bloqueador.style.display = 'flex'; instrucciones.style.display = ''; document.body.classList.remove('locked'); });
+            escena.add(controles.getObject());
+            document.addEventListener('keydown', alPresionarTecla);
+            document.addEventListener('keyup', alSoltarTecla);
+
+            anchoPrincipal = 10; profundidadPrincipal = 8;
+            anchoCocina = 6; profundidadCocina = 8;
+            anchoDormitorio = 6; profundidadDormitorio = 8;
+
+            posicionTriggerDormitorio = new THREE.Vector3(-anchoPrincipal / 2 - 1, alturaJugador, profundidadPrincipal / 2 + 1);
+
+            configurarIluminacion();
+            cargarTexturasYMateriales();
+            crearEntorno();
+            crearMobiliario();
+            crearObjetosInteractivos();
+            configurarPostProcesamiento();
+
+            raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0), 0, 10);
+            raton = new THREE.Vector2();
+            window.addEventListener('click', alHacerClic);
+
+            window.addEventListener('resize', alRedimensionarVentana);
+
+            animar();
+        }
+
+        function configurarIluminacion() {
+            const luzAmbiente = new THREE.AmbientLight(0x303540, 0.4);
+            escena.add(luzAmbiente);
+
+            const luzPrincipal = new THREE.PointLight(0xffeedd, 0.8, 15, 1.5);
+            luzPrincipal.position.set(0, 2.8, 1);
+            luzPrincipal.castShadow = true;
+            luzPrincipal.shadow.mapSize.width = 1024; luzPrincipal.shadow.mapSize.height = 1024;
+            luzPrincipal.shadow.bias = -0.001;
+            escena.add(luzPrincipal);
+
+            luzTelefono = new THREE.PointLight(0xff0000, 0, 5);
+            escena.add(luzTelefono);
+
+            luzParpadeante = new THREE.PointLight(0x8888ff, 0, 8, 2);
+            luzParpadeante.position.set(-5, 2.5, -6);
+            luzParpadeante.castShadow = false;
+            escena.add(luzParpadeante);
+
+            const luzCocina = new THREE.PointLight(0xfff0b3, 0.6, 10, 1.8);
+            luzCocina.position.set(6, 2.5, -3);
+            luzCocina.castShadow = false;
+            escena.add(luzCocina);
+            const luzDormitorio = new THREE.PointLight(0xffd0a0, 0.5, 9, 2.0);
+            luzDormitorio.position.set(-6, 2.5, 3);
+            luzDormitorio.castShadow = false;
+            escena.add(luzDormitorio);
+        }
+
+
+        function cargarTexturasYMateriales() {
+            const rutaTexturas = 'C:\Nueva carpeta\textures';
+            const rutaImagenes = 'images/';
+
+            const urlColorBaseSuelo = rutaTexturas + 'weathered_planks_diff_1k.png';
+            const urlNormalSuelo = rutaTexturas + 'weathered_planks_nor_gl_1k.png';
+            const urlRugosidadSuelo = rutaTexturas + 'weathered_planks_rough_1k.png';
+            const urlAOSuelo = rutaTexturas + 'weathered_planks_ao_1k.png';
+            const urlColorBasePared = rutaTexturas + 'concrete_wall_diff_1k.png';
+            const urlNormalPared = rutaTexturas + 'concrete_wall_nor_gl_1k.png';
+            const urlRugosidadPared = rutaTexturas + 'concrete_wall_rough_1k.png';
+            const urlAOPared = rutaTexturas + 'concrete_wall_ao_1k.png';
+            const urlTexturaMuebles = rutaTexturas + 'wood_cabinet_diff_1k.png';
+            const urlTexturaTelefono = rutaTexturas + 'plastic_old_diff_1k.png';
+            const urlTexturaMarcoVentana = rutaTexturas + 'window_frame_diff_1k.png';
+            const urlTexturaGabinete = rutaTexturas + 'cabinet_wood_diff_1k.png';
+            const urlTexturaElectrodomestico = rutaTexturas + 'appliance_metal_diff_1k.png';
+            const urlTexturaSueloExterior = rutaTexturas + 'dark_ground_diff_1k.png';
+            const urlTexturaTecho = rutaTexturas + 'plaster_ceiling_diff_1k.png';
+            const urlTexturaScreamer = rutaImagenes + 'screamer_face.png';
+
+            const texturaSuelo = cargadorTexturas.load(urlColorBaseSuelo);
+            const mapaNormalSuelo = cargadorTexturas.load(urlNormalSuelo);
+            const mapaRugosidadSuelo = cargadorTexturas.load(urlRugosidadSuelo);
+            const mapaAOSuelo = cargadorTexturas.load(urlAOSuelo);
+            const texturaPared = cargadorTexturas.load(urlColorBasePared);
+            const mapaNormalPared = cargadorTexturas.load(urlNormalPared);
+            const mapaRugosidadPared = cargadorTexturas.load(urlRugosidadPared);
+            const mapaAOPared = cargadorTexturas.load(urlAOPared);
+            const texturaMuebles = cargadorTexturas.load(urlTexturaMuebles);
+            texturaTelefono = cargadorTexturas.load(urlTexturaTelefono);
+            const texturaMarcoVentana = cargadorTexturas.load(urlTexturaMarcoVentana);
+            texturaGabinete = cargadorTexturas.load(urlTexturaGabinete);
+            texturaElectrodomestico = cargadorTexturas.load(urlTexturaElectrodomestico);
+            const texturaSueloExterior = cargadorTexturas.load(urlTexturaSueloExterior);
+            texturaScreamer = cargadorTexturas.load(urlTexturaScreamer);
+            const texturaTecho = cargadorTexturas.load(urlTexturaTecho);
+
+            const anisotropia = renderer.capabilities.getMaxAnisotropy();
+            const listaTexturas = [
+                texturaSuelo, mapaNormalSuelo, mapaRugosidadSuelo, mapaAOSuelo,
+                texturaPared, mapaNormalPared, mapaRugosidadPared, mapaAOPared,
+                texturaMuebles, texturaTelefono, texturaMarcoVentana, texturaGabinete,
+                texturaElectrodomestico, texturaSueloExterior, texturaTecho
+            ];
+            listaTexturas.forEach(tex => {
+                if (tex) {
+                    tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+                    tex.anisotropy = anisotropia;
+                }
+            });
+
+            const repetirSuelo = new THREE.Vector2(8, 8);
+            texturaSuelo.repeat.copy(repetirSuelo); mapaNormalSuelo.repeat.copy(repetirSuelo);
+            mapaRugosidadSuelo.repeat.copy(repetirSuelo); mapaAOSuelo.repeat.copy(repetirSuelo);
+            const repetirPared = new THREE.Vector2(6, 2);
+            texturaPared.repeat.copy(repetirPared); mapaNormalPared.repeat.copy(repetirPared);
+            mapaRugosidadPared.repeat.copy(repetirPared); mapaAOPared.repeat.copy(repetirPared);
+            texturaMuebles.repeat.set(1, 1); if (texturaTelefono) texturaTelefono.repeat.set(1, 1);
+            texturaMarcoVentana.repeat.set(1, 1); if (texturaGabinete) texturaGabinete.repeat.set(1, 1);
+            if (texturaElectrodomestico) texturaElectrodomestico.repeat.set(1, 1);
+            texturaSueloExterior.repeat.set(16, 16); texturaTecho.repeat.set(6, 6);
+
+            materialSuelo = new THREE.MeshStandardMaterial({ map: texturaSuelo, normalMap: mapaNormalSuelo, roughnessMap: mapaRugosidadSuelo, aoMap: mapaAOSuelo, aoMapIntensity: 1.0 });
+            materialPared = new THREE.MeshStandardMaterial({ map: texturaPared, normalMap: mapaNormalPared, roughnessMap: mapaRugosidadPared, aoMap: mapaAOPared, aoMapIntensity: 0.8 });
+            materialMuebles = new THREE.MeshStandardMaterial({ map: texturaMuebles, roughness: 0.7, metalness: 0.2 });
+            materialMarcoVentana = new THREE.MeshStandardMaterial({ map: texturaMarcoVentana, roughness: 0.8, metalness: 0.1 });
+            materialGabinete = new THREE.MeshStandardMaterial({ map: texturaGabinete, roughness: 0.8, metalness: 0.1 });
+            materialElectrodomestico = new THREE.MeshStandardMaterial({ map: texturaElectrodomestico, roughness: 0.3, metalness: 0.4 });
+            materialVidrio = new THREE.MeshPhysicalMaterial({ color: 0xaaaaaa, metalness: 0.1, roughness: 0.05, transmission: 0.9, transparent: true, opacity: 0.5, reflectivity: 0.3, ior: 1.5 });
+            materialSueloExterior = new THREE.MeshStandardMaterial({ map: texturaSueloExterior, roughness: 0.95, metalness: 0.0 });
+            materialTecho = new THREE.MeshStandardMaterial({ map: texturaTecho, roughness: 0.9 });
+
+            const rutaSkybox = 'textures/skybox/';
+            const urlsSkybox = [ rutaSkybox + 'px.png', rutaSkybox + 'nx.png', rutaSkybox + 'py.png', rutaSkybox + 'ny.png', rutaSkybox + 'pz.png', rutaSkybox + 'nz.png' ];
+             try {
+                 const texturaSkybox = cargadorTexturasCubo.load(urlsSkybox, () => { escena.background = texturaSkybox; }, undefined, (err) => { console.error("Error cargando skybox:", err); escena.background = new THREE.Color(0x050510); });
+             } catch (error) { console.error("Error iniciando carga skybox:", error); escena.background = new THREE.Color(0x050510); }
+        }
+
+
+        function crearEntorno() {
+            const alturaPared = 3; const grosorPared = 0.2;
+            const anchoCasa = anchoPrincipal + Math.max(anchoCocina, anchoDormitorio) + grosorPared;
+            const profundidadCasa = profundidadPrincipal + Math.max(profundidadCocina, profundidadDormitorio) + grosorPared;
+
+            const geometriaSuelo = new THREE.PlaneGeometry(anchoCasa * 1.1, profundidadCasa * 1.1);
+            const suelo = new THREE.Mesh(geometriaSuelo, materialSuelo);
+            suelo.rotation.x = -Math.PI / 2; suelo.receiveShadow = true; escena.add(suelo);
+
+            const geometriaTecho = new THREE.PlaneGeometry(anchoCasa * 1.1, profundidadCasa * 1.1);
+            const techo = new THREE.Mesh(geometriaTecho, materialTecho);
+            techo.rotation.x = Math.PI / 2; techo.position.y = alturaPared; techo.receiveShadow = true; escena.add(techo);
+
+            const geometriaSueloExt = new THREE.PlaneGeometry(100, 100);
+            const sueloExterior = new THREE.Mesh(geometriaSueloExt, materialSueloExterior);
+            sueloExterior.rotation.x = -Math.PI / 2; sueloExterior.position.y = -0.05; sueloExterior.receiveShadow = true; escena.add(sueloExterior);
+
+            function crearSegmentoPared(ancho, profundidad, x, z, rotacionY = 0, tieneVentana = false) {
+                const grupoPared = new THREE.Group();
+                grupoPared.position.set(x, alturaPared / 2, z); grupoPared.rotation.y = rotacionY;
+
+                if (tieneVentana && ancho > 1.5) {
+                    const anchoVentana = 1.0; const altoVentana = 1.2; const grosorMarco = 0.05; const alturaAntepecho = 1.0;
+                    const anchoPartePared = (ancho - anchoVentana) / 2;
+                    const geoIzquierda = new THREE.BoxGeometry(anchoPartePared, alturaPared, profundidad); const mallaIzquierda = new THREE.Mesh(geoIzquierda, materialPared); mallaIzquierda.position.x = -(anchoVentana / 2 + anchoPartePared / 2); mallaIzquierda.castShadow = true; mallaIzquierda.receiveShadow = true; grupoPared.add(mallaIzquierda); objetosColisionables.push(mallaIzquierda);
+                    const geoDerecha = new THREE.BoxGeometry(anchoPartePared, alturaPared, profundidad); const mallaDerecha = new THREE.Mesh(geoDerecha, materialPared); mallaDerecha.position.x = (anchoVentana / 2 + anchoPartePared / 2); mallaDerecha.castShadow = true; mallaDerecha.receiveShadow = true; grupoPared.add(mallaDerecha); objetosColisionables.push(mallaDerecha);
+                    const geoArriba = new THREE.BoxGeometry(anchoVentana, alturaPared - alturaAntepecho - altoVentana, profundidad); const mallaArriba = new THREE.Mesh(geoArriba, materialPared); mallaArriba.position.y = (alturaAntepecho + altoVentana + (alturaPared - alturaAntepecho - altoVentana) / 2) - alturaPared / 2; mallaArriba.castShadow = true; mallaArriba.receiveShadow = true; grupoPared.add(mallaArriba); objetosColisionables.push(mallaArriba);
+                    const geoAbajo = new THREE.BoxGeometry(anchoVentana, alturaAntepecho, profundidad); const mallaAbajo = new THREE.Mesh(geoAbajo, materialPared); mallaAbajo.position.y = alturaAntepecho / 2 - alturaPared / 2; mallaAbajo.castShadow = true; mallaAbajo.receiveShadow = true; grupoPared.add(mallaAbajo); objetosColisionables.push(mallaAbajo);
+                    const geoMarcoH = new THREE.BoxGeometry(anchoVentana + grosorMarco*2, grosorMarco, profundidad + grosorMarco); const geoMarcoV = new THREE.BoxGeometry(grosorMarco, altoVentana + grosorMarco*2, profundidad + grosorMarco); const marcoY = alturaAntepecho + altoVentana / 2 - alturaPared / 2;
+                    const marcoSuperior = new THREE.Mesh(geoMarcoH, materialMarcoVentana); marcoSuperior.position.y = marcoY + altoVentana/2 + grosorMarco/2; grupoPared.add(marcoSuperior);
+                    const marcoInferior = new THREE.Mesh(geoMarcoH, materialMarcoVentana); marcoInferior.position.y = marcoY - altoVentana/2 - grosorMarco/2; grupoPared.add(marcoInferior);
+                    const marcoIzquierdo = new THREE.Mesh(geoMarcoV, materialMarcoVentana); marcoIzquierdo.position.x = -anchoVentana/2 - grosorMarco/2; marcoIzquierdo.position.y = marcoY; grupoPared.add(marcoIzquierdo);
+                    const marcoDerecho = new THREE.Mesh(geoMarcoV, materialMarcoVentana); marcoDerecho.position.x = anchoVentana/2 + grosorMarco/2; marcoDerecho.position.y = marcoY; grupoPared.add(marcoDerecho);
+                    const geoVidrio = new THREE.PlaneGeometry(anchoVentana, altoVentana); const panelVidrio = new THREE.Mesh(geoVidrio, materialVidrio); panelVidrio.position.y = marcoY; panelVidrio.position.z = profundidad / 2 + 0.01; grupoPared.add(panelVidrio);
+                } else {
+                    const geometriaPared = new THREE.BoxGeometry(ancho, alturaPared, profundidad); const pared = new THREE.Mesh(geometriaPared, materialPared); pared.castShadow = true; pared.receiveShadow = true; grupoPared.add(pared); objetosColisionables.push(pared);
+                }
+                escena.add(grupoPared);
+            }
+
+            const anchoPuerta = 2.0;
+            crearSegmentoPared(anchoPrincipal + anchoCocina + grosorPared, grosorPared, 0, -(profundidadPrincipal / 2 + profundidadCocina / 2), 0, true);
+            crearSegmentoPared(anchoPrincipal + anchoDormitorio + grosorPared, grosorPared, 0, profundidadPrincipal / 2 + profundidadDormitorio / 2);
+            crearSegmentoPared(grosorPared, profundidadPrincipal + profundidadCocina + grosorPared, -(anchoPrincipal / 2 + anchoDormitorio / 2), 0, 0, true);
+            crearSegmentoPared(grosorPared, profundidadPrincipal + profundidadCocina + grosorPared, anchoPrincipal / 2 + anchoCocina / 2, 0);
+            if (profundidadCocina > anchoPuerta) { const p1D = (profundidadCocina - anchoPuerta) / 2; crearSegmentoPared(grosorPared, p1D, anchoPrincipal / 2, -(profundidadPrincipal/2 + anchoPuerta/2 + p1D/2)); crearSegmentoPared(grosorPared, p1D, anchoPrincipal / 2, -(profundidadPrincipal/2 - anchoPuerta/2 - p1D/2)); } else { crearSegmentoPared(grosorPared, profundidadCocina, anchoPrincipal / 2, -profundidadPrincipal / 2); }
+            if (profundidadDormitorio > anchoPuerta) { const p2D = (profundidadDormitorio - anchoPuerta) / 2; crearSegmentoPared(grosorPared, p2D, -anchoPrincipal / 2, profundidadPrincipal/2 + anchoPuerta/2 + p2D/2); crearSegmentoPared(grosorPared, p2D, -anchoPrincipal / 2, profundidadPrincipal/2 - anchoPuerta/2 - p2D/2); } else { crearSegmentoPared(grosorPared, profundidadDormitorio, -anchoPrincipal / 2, profundidadPrincipal / 2); }
+            crearSegmentoPared(anchoCocina, grosorPared, anchoPrincipal/2 + anchoCocina/2, -profundidadPrincipal/2);
+            crearSegmentoPared(anchoDormitorio, grosorPared, -anchoPrincipal/2 - anchoDormitorio/2, profundidadPrincipal/2);
+        }
+
+
+        function crearMobiliario() {
+            function crearMuebleCaja(ancho, alto, prof, x, y, z, material, nombre) {
+                const geo = new THREE.BoxGeometry(ancho, alto, prof); const malla = new THREE.Mesh(geo, material);
+                malla.position.set(x, alto / 2 + y, z); malla.castShadow = true; malla.receiveShadow = true; malla.name = nombre;
+                escena.add(malla); objetosColisionables.push(malla);
+            }
+            crearMuebleCaja(1.5, 0.6, 0.7, 3, 0, 4, materialMuebles, "mesa");
+            const altoMostrador = 0.9; const profMostrador = 0.6; const profGabinete = 0.4; const altoGabineteSup = 0.7; const yGabineteSup = 1.5; const anchoNevera = 0.8; const altoNevera = 1.8; const anchoEstufa = 0.7; const anchoSegmentoMostrador = anchoCocina - anchoEstufa - 0.2;
+            crearMuebleCaja(anchoSegmentoMostrador / 2, altoMostrador, profMostrador, anchoPrincipal/2 + anchoSegmentoMostrador/4, 0, -(profundidadPrincipal/2 + profundidadCocina/2 - profMostrador/2), materialGabinete, "gabinete_cocina_inferior");
+            crearMuebleCaja(anchoSegmentoMostrador / 2, altoMostrador, profMostrador, anchoPrincipal/2 + anchoEstufa + anchoSegmentoMostrador*3/4 + 0.1, 0, -(profundidadPrincipal/2 + profundidadCocina/2 - profMostrador/2), materialGabinete, "gabinete_cocina_inferior");
+            crearMuebleCaja(anchoSegmentoMostrador / 2, altoGabineteSup, profGabinete, anchoPrincipal/2 + anchoSegmentoMostrador/4, yGabineteSup, -(profundidadPrincipal/2 + profundidadCocina/2 - profGabinete/2), materialGabinete, "gabinete_cocina_superior");
+            crearMuebleCaja(anchoSegmentoMostrador / 2, altoGabineteSup, profGabinete, anchoPrincipal/2 + anchoEstufa + anchoSegmentoMostrador*3/4 + 0.1, yGabineteSup, -(profundidadPrincipal/2 + profundidadCocina/2 - profGabinete/2), materialGabinete, "gabinete_cocina_superior");
+            crearMuebleCaja(anchoEstufa, altoMostrador, profMostrador - 0.05, anchoPrincipal/2 + anchoSegmentoMostrador/2 + anchoEstufa/2 + 0.05, 0, -(profundidadPrincipal/2 + profundidadCocina/2 - (profMostrador - 0.05)/2), materialElectrodomestico, "estufa");
+            crearMuebleCaja(anchoNevera, altoNevera, 0.7, anchoPrincipal/2 + anchoCocina/2 - anchoNevera/2 - 0.1, 0, -(profundidadPrincipal/2 + 1.0), materialElectrodomestico, "nevera");
+            crearMuebleCaja(1.2, 0.7, 1.2, anchoPrincipal/2 + anchoCocina/2 - 1, 0, -(profundidadPrincipal/2 + 1), materialMuebles, "mesa_cocina");
+            crearMuebleCaja(1.4, 0.5, 2.0, -(anchoPrincipal/2 + anchoDormitorio/2 - 0.7), 0, profundidadPrincipal/2 + profundidadDormitorio/2 - 1.0, materialMuebles, "marco_cama");
+            crearMuebleCaja(0.5, 0.6, 0.5, -(anchoPrincipal/2 + anchoDormitorio/2 - 1.7), 0, profundidadPrincipal/2 + profundidadDormitorio/2 - 1.8, materialMuebles, "mesita_noche");
+        }
+
+         function crearObjetosInteractivos() {
+            const grupoTelefono = new THREE.Group();
+            const materialBaseTelefono = new THREE.MeshStandardMaterial({ map: texturaTelefono, roughness: 0.7, metalness: 0.1 });
+            const geoBase = new THREE.BoxGeometry(0.6, 0.2, 0.8); const base = new THREE.Mesh(geoBase, materialBaseTelefono); base.castShadow = true; base.receiveShadow = true; base.position.y = 0.1; grupoTelefono.add(base); objetosColisionables.push(base);
+            const geoAuricular = new THREE.CylinderGeometry(0.1, 0.1, 0.7, 8); const auricular = new THREE.Mesh(geoAuricular, materialBaseTelefono); auricular.rotation.z = Math.PI / 2; auricular.position.set(0, 0.25 + 0.1, 0); auricular.castShadow = true; auricular.receiveShadow = true; grupoTelefono.add(auricular);
+            mallaTelefono = grupoTelefono; mallaTelefono.position.set(3, 0.6 + 0.1, 4); escena.add(mallaTelefono); luzTelefono.position.copy(mallaTelefono.position).y += 0.1;
+
+            const geoTarea = new THREE.BoxGeometry(0.3, 0.3, 0.3); const materialTarea = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.5 }); objetoTarea = new THREE.Mesh(geoTarea, materialTarea); objetoTarea.position.set(-(anchoPrincipal/2 + anchoDormitorio/2 - 1.7), 0.6 + 0.15, profundidadPrincipal/2 + profundidadDormitorio/2 - 1.8); objetoTarea.castShadow = true; objetoTarea.receiveShadow = true; objetoTarea.name = "objetoTarea"; escena.add(objetoTarea);
+        }
+
+        function configurarPostProcesamiento() {
+            composer = new EffectComposer(renderer);
+            const pasoRender = new RenderPass(escena, camara); composer.addPass(pasoRender);
+            const pasoFilm = new FilmPass(0.30, 0.4, 1024, false); if (pasoFilm.uniforms && pasoFilm.uniforms['time']) { pasoFilm.uniforms['time'].value = Math.random() * 10; } composer.addPass(pasoFilm);
+            const pasoBadTV = new ShaderPass(BadTVShader); if (pasoBadTV.uniforms && pasoBadTV.uniforms['time']) { pasoBadTV.uniforms['time'].value = Math.random() * 10; } composer.addPass(pasoBadTV);
+        }
+
+
+        function alPresionarTecla(event) {
+             switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moverseAdelante = true; break;
+                case 'ArrowLeft': case 'KeyA': moverseIzquierda = true; break;
+                case 'ArrowDown': case 'KeyS': moverseAtras = true; break;
+                case 'ArrowRight': case 'KeyD': moverseDerecha = true; break;
+            }
+        }
+        function alSoltarTecla(event) {
+            switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moverseAdelante = false; break;
+                case 'ArrowLeft': case 'KeyA': moverseIzquierda = false; break;
+                case 'ArrowDown': case 'KeyS': moverseAtras = false; break;
+                case 'ArrowRight': case 'KeyD': moverseDerecha = false; break;
+            }
+        }
+
+        function alHacerClic() {
+             if (!controles.isLocked) return;
+            raycaster.setFromCamera({ x: 0, y: 0 }, camara);
+            const intersecciones = raycaster.intersectObjects(escena.children, true);
+            if (intersecciones.length > 0) {
+                const primeraInterseccion = intersecciones[0]; const objetoIntersectado = primeraInterseccion.object;
+                if (primeraInterseccion.distance < 3.0) {
+                    if (objetoIntersectado === objetoTarea && !tareaCompletada) { completarTarea(); return; }
+                    let parteTelefonoClicada = false; let padreActual = objetoIntersectado.parent;
+                    while (padreActual !== null && padreActual !== escena) { if (padreActual === mallaTelefono) { if (telefonoSonando) { responderLlamada(); } parteTelefonoClicada = true; break; } padreActual = padreActual.parent; }
+                    if (parteTelefonoClicada) return;
+                    switch (objetoIntersectado.name) {
+                        case "gabinete_cocina_superior": mostrarMensaje("Un armario superior. Parece cerrado."); break;
+                        case "gabinete_cocina_inferior": mostrarMensaje("Un armario inferior. Intentas abrirlo, pero está atascado."); break;
+                        case "nevera": mostrarMensaje("Una nevera vieja. No parece funcionar... y huele raro."); break;
+                        case "estufa": mostrarMensaje("Una estufa. Fría al tacto."); break;
+                        case "mesa_cocina": mostrarMensaje("Una mesa de cocina vacía."); break;
+                        case "mostrador": mostrarMensaje("Una encimera polvorienta."); break;
+                        case "marco_cama": mostrarMensaje("Una cama deshecha."); break;
+                        case "mesita_noche": mostrarMensaje("Una mesita de noche."); break;
+                        case "mesa": mostrarMensaje("Una mesa pequeña."); break;
+                    }
+                }
+            }
+        }
+
+        function completarTarea() {
+            tareaCompletada = true; escena.remove(objetoTarea); document.getElementById('info').textContent = 'Algo ha cambiado... escucha...';
+            mostrarMensaje("Has recogido el objeto."); const retrasoInicial = Math.random() * 8000 + 4000;
+            console.log(`Tarea completada. El teléfono sonará en ${retrasoInicial/1000} segundos.`); setTimeout(hacerSonarTelefono, retrasoInicial);
+         }
+
+        function hacerSonarTelefono() {
+             if (!tareaCompletada || telefonoSonando) return;
+            console.log("Teléfono sonando..."); telefonoSonando = true; luzTelefono.intensity = 2.0; luzTelefono.distance = 5;
+            // sonidoTimbre.play().catch(e => console.error("Error sonido timbre:", e));
+            let luzEncendida = true; intervaloTimbre = setInterval(() => { luzEncendida = !luzEncendida; luzTelefono.intensity = luzEncendida ? 2.0 : 0.5; }, 500);
+            mostrarMensaje("El teléfono está sonando..."); document.getElementById('info').textContent = '¡El teléfono está sonando! Haz clic en él.';
+         }
+        function responderLlamada() {
+             if (!telefonoSonando) return;
+            telefonoSonando = false; clearInterval(intervaloTimbre); luzTelefono.intensity = 0;
+            // sonidoTimbre.pause(); // sonidoTimbre.currentTime = 0;
+            llamadasRespondidas++; console.log(`Llamada respondida. Llamadas totales: ${llamadasRespondidas}`);
+            if (llamadasRespondidas === 2 && !screamerLlamadaActivado) { activarScreamer(500); screamerLlamadaActivado = true; console.log("Screamer activado por llamada!"); }
+            const mensajes = ["¿Hola?... ¿Hay alguien ahí?", "Te estamos observando.", "No deberías haber contestado.", "Cuelga... ahora.", "[Estática intensa y susurros ininteligibles]", "Pronto nos veremos.", "La señal... se pierde...", "Detrás de ti."];
+            const mensajeAleatorio = mensajes[Math.floor(Math.random() * mensajes.length)]; mostrarMensaje(mensajeAleatorio); document.getElementById('info').textContent = '...Silencio... ¿Volverá a sonar?';
+            const retrasoSiguienteLlamada = Math.random() * 20000 + 15000; console.log(`Siguiente llamada en ${retrasoSiguienteLlamada/1000} segundos.`); setTimeout(hacerSonarTelefono, retrasoSiguienteLlamada);
+         }
+
+        function mostrarMensaje(texto) {
+             cajaMensajes.textContent = texto; cajaMensajes.style.display = 'block'; setTimeout(() => { cajaMensajes.style.display = 'none'; }, 3500);
+         }
+
+         function activarScreamer(duracion = 500) {
+             console.log("Activando screamer..."); if (!texturaScreamer || !texturaScreamer.image) { console.error("Textura screamer no cargada!"); return; }
+             overlayScreamer.style.backgroundImage = `url(${texturaScreamer.image.src})`; overlayScreamer.style.display = 'block'; overlayScreamer.style.backgroundColor = 'rgba(0, 0, 0, 1)';
+             // sonidoScreamer.currentTime = 0; // sonidoScreamer.play().catch(e => console.error("Error sonido screamer:", e));
+             setTimeout(() => { overlayScreamer.style.display = 'none'; overlayScreamer.style.backgroundColor = 'rgba(0, 0, 0, 0)'; console.log("Screamer oculto."); }, duracion);
+         }
+
+
+         function comprobarColisiones(delta) {
+            const posicionJugador = controles.getObject().position; const posicionActual = posicionJugador.clone();
+            direccion.z = Number(moverseAdelante) - Number(moverseAtras); direccion.x = Number(moverseDerecha) - Number(moverseIzquierda); direccion.normalize();
+            const moverX = direccion.x * velocidadJugador * delta; const moverZ = direccion.z * velocidadJugador * delta;
+            controles.moveRight(-moverX); controles.moveForward(-moverZ);
+            const posicionSiguiente = controles.getObject().position.clone();
+            let colisionDetectada = false; const cajaJugador = new THREE.Box3().setFromCenterAndSize( posicionSiguiente.clone().setY(alturaJugador / 2), new THREE.Vector3(radioColisionJugador * 2, alturaJugador, radioColisionJugador * 2) );
+            for (const obj of objetosColisionables) { obj.updateMatrixWorld(true); const cajaObjeto = new THREE.Box3().setFromObject(obj, true); if (cajaJugador.intersectsBox(cajaObjeto)) { colisionDetectada = true; break; } }
+            if (colisionDetectada) { controles.getObject().position.copy(posicionActual); }
+        }
+
+
+        function alRedimensionarVentana() {
+            camara.aspect = window.innerWidth / window.innerHeight; camara.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight);
+         }
+
+        function animar() {
+            requestAnimationFrame(animar);
+            const delta = reloj.getDelta(); const tiempoTranscurrido = reloj.getElapsedTime();
+
+            if (controles.isLocked === true) {
+                comprobarColisiones(delta);
+                if (posicionTriggerDormitorio) { const posJugador = controles.getObject().position; const dist = posJugador.distanceTo(posicionTriggerDormitorio); if (!screamerDormitorioActivado && dist < radioTriggerDormitorio) { activarScreamer(600); screamerDormitorioActivado = true; console.log("Screamer activado por posición!"); } }
+            }
+
+            if (luzParpadeante) { const intensidad = Math.max(0, Math.sin(tiempoTranscurrido * 5 + Math.random() * 0.5) * 0.5 + 0.2 + Math.random() * 0.4); luzParpadeante.intensity = intensidad; }
+
+            composer.passes.forEach(pass => { if (pass.uniforms && pass.uniforms['time']) { pass.uniforms['time'].value += delta; } });
+
+            composer.render(delta);
+        }
+
+        window.onload = init;
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "night-calls-game",
+  "version": "1.0.0",
+  "description": "Demo de Terror hecha por Joselupo329",
+  "main": "main.js",
+  "dependencies": {
+    "three": "^0.176.0"
+  },
+  "scripts": {
+    "start": "electron .",
+    "package-win": "electron-packager . night-calls --platform=win32 --arch=x64 --out=dist/ --overwrite --icon=path/to/your/icon.ico"
+  },
+  "author": "Joselupo329",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^29.0.0", 
+    "electron-packager": "^17.0.0"
+  }
+}
