@@ -213,43 +213,56 @@
 
 
         function cargarTexturasYMateriales() {
-            const rutaTexturas = 'C:\Nueva carpeta\textures';
-            const rutaImagenes = 'images/';
+            // Usar rutas relativas a la ubicación del index (carpetas ya existentes)
+            const rutaTexturas = './textures/';
+            const rutaImagenes = './images/';
 
-            const urlColorBaseSuelo = rutaTexturas + 'weathered_planks_diff_1k.png';
-            const urlNormalSuelo = rutaTexturas + 'weathered_planks_nor_gl_1k.png';
-            const urlRugosidadSuelo = rutaTexturas + 'weathered_planks_rough_1k.png';
-            const urlAOSuelo = rutaTexturas + 'weathered_planks_ao_1k.png';
-            const urlColorBasePared = rutaTexturas + 'concrete_wall_diff_1k.png';
-            const urlNormalPared = rutaTexturas + 'concrete_wall_nor_gl_1k.png';
-            const urlRugosidadPared = rutaTexturas + 'concrete_wall_rough_1k.png';
-            const urlAOPared = rutaTexturas + 'concrete_wall_ao_1k.png';
-            const urlTexturaMuebles = rutaTexturas + 'wood_cabinet_diff_1k.png';
-            const urlTexturaTelefono = rutaTexturas + 'plastic_old_diff_1k.png';
-            const urlTexturaMarcoVentana = rutaTexturas + 'window_frame_diff_1k.png';
-            const urlTexturaGabinete = rutaTexturas + 'cabinet_wood_diff_1k.png';
-            const urlTexturaElectrodomestico = rutaTexturas + 'appliance_metal_diff_1k.png';
-            const urlTexturaSueloExterior = rutaTexturas + 'dark_ground_diff_1k.png';
-            const urlTexturaTecho = rutaTexturas + 'plaster_ceiling_diff_1k.png';
-            const urlTexturaScreamer = rutaImagenes + 'screamer_face.png';
+            // Construir URLs usando template strings para evitar errores de path
+            const urlColorBaseSuelo = `${rutaTexturas}weathered_planks_diff_1k.png`;
+            const urlNormalSuelo = `${rutaTexturas}weathered_planks_nor_gl_1k.png`;
+            const urlRugosidadSuelo = `${rutaTexturas}weathered_planks_rough_1k.png`;
+            const urlAOSuelo = `${rutaTexturas}weathered_planks_ao_1k.png`;
+            const urlColorBasePared = `${rutaTexturas}concrete_wall_diff_1k.png`;
+            const urlNormalPared = `${rutaTexturas}concrete_wall_nor_gl_1k.png`;
+            const urlRugosidadPared = `${rutaTexturas}concrete_wall_rough_1k.png`;
+            const urlAOPared = `${rutaTexturas}concrete_wall_ao_1k.png`;
+            const urlTexturaMuebles = `${rutaTexturas}wood_cabinet_diff_1k.png`;
+            const urlTexturaTelefono = `${rutaTexturas}plastic_old_diff_1k.png`;
+            const urlTexturaMarcoVentana = `${rutaTexturas}window_frame_diff_1k.png`;
+            const urlTexturaGabinete = `${rutaTexturas}cabinet_wood_diff_1k.png`;
+            const urlTexturaElectrodomestico = `${rutaTexturas}appliance_metal_diff_1k.png`;
+            const urlTexturaSueloExterior = `${rutaTexturas}dark_ground_diff_1k.png`;
+            const urlTexturaTecho = `${rutaTexturas}plaster_ceiling_diff_1k.png`;
+            const urlTexturaScreamer = `${rutaImagenes}screamer_face.png`;
 
-            const texturaSuelo = cargadorTexturas.load(urlColorBaseSuelo);
-            const mapaNormalSuelo = cargadorTexturas.load(urlNormalSuelo);
-            const mapaRugosidadSuelo = cargadorTexturas.load(urlRugosidadSuelo);
-            const mapaAOSuelo = cargadorTexturas.load(urlAOSuelo);
-            const texturaPared = cargadorTexturas.load(urlColorBasePared);
-            const mapaNormalPared = cargadorTexturas.load(urlNormalPared);
-            const mapaRugosidadPared = cargadorTexturas.load(urlRugosidadPared);
-            const mapaAOPared = cargadorTexturas.load(urlAOPared);
-            const texturaMuebles = cargadorTexturas.load(urlTexturaMuebles);
-            texturaTelefono = cargadorTexturas.load(urlTexturaTelefono);
-            const texturaMarcoVentana = cargadorTexturas.load(urlTexturaMarcoVentana);
-            texturaGabinete = cargadorTexturas.load(urlTexturaGabinete);
-            texturaElectrodomestico = cargadorTexturas.load(urlTexturaElectrodomestico);
-            const texturaSueloExterior = cargadorTexturas.load(urlTexturaSueloExterior);
-            texturaScreamer = cargadorTexturas.load(urlTexturaScreamer);
-            const texturaTecho = cargadorTexturas.load(urlTexturaTecho);
+            // Cargar texturas (si falla alguna, se captura el error en consola)
+            function safeLoad(loader, url) {
+                try {
+                    return loader.load(url);
+                } catch (e) {
+                    console.warn(`No se pudo cargar textura: ${url}`, e);
+                    return null;
+                }
+            }
 
+            const texturaSuelo = safeLoad(cargadorTexturas, urlColorBaseSuelo);
+            const mapaNormalSuelo = safeLoad(cargadorTexturas, urlNormalSuelo);
+            const mapaRugosidadSuelo = safeLoad(cargadorTexturas, urlRugosidadSuelo);
+            const mapaAOSuelo = safeLoad(cargadorTexturas, urlAOSuelo);
+            const texturaPared = safeLoad(cargadorTexturas, urlColorBasePared);
+            const mapaNormalPared = safeLoad(cargadorTexturas, urlNormalPared);
+            const mapaRugosidadPared = safeLoad(cargadorTexturas, urlRugosidadPared);
+            const mapaAOPared = safeLoad(cargadorTexturas, urlAOPared);
+            const texturaMuebles = safeLoad(cargadorTexturas, urlTexturaMuebles);
+            texturaTelefono = safeLoad(cargadorTexturas, urlTexturaTelefono);
+            const texturaMarcoVentana = safeLoad(cargadorTexturas, urlTexturaMarcoVentana);
+            texturaGabinete = safeLoad(cargadorTexturas, urlTexturaGabinete);
+            texturaElectrodomestico = safeLoad(cargadorTexturas, urlTexturaElectrodomestico);
+            const texturaSueloExterior = safeLoad(cargadorTexturas, urlTexturaSueloExterior);
+            texturaScreamer = safeLoad(cargadorTexturas, urlTexturaScreamer);
+            const texturaTecho = safeLoad(cargadorTexturas, urlTexturaTecho);
+
+            // Aplicar wrapping/anisotropía sólo si la textura existe
             const anisotropia = renderer.capabilities.getMaxAnisotropy();
             const listaTexturas = [
                 texturaSuelo, mapaNormalSuelo, mapaRugosidadSuelo, mapaAOSuelo,
@@ -259,37 +272,74 @@
             ];
             listaTexturas.forEach(tex => {
                 if (tex) {
-                    tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
                     tex.anisotropy = anisotropia;
                 }
             });
 
+            // Repeticiones seguras (comprobar existencia antes de usar)
             const repetirSuelo = new THREE.Vector2(8, 8);
-            texturaSuelo.repeat.copy(repetirSuelo); mapaNormalSuelo.repeat.copy(repetirSuelo);
-            mapaRugosidadSuelo.repeat.copy(repetirSuelo); mapaAOSuelo.repeat.copy(repetirSuelo);
+            if (texturaSuelo) texturaSuelo.repeat.copy(repetirSuelo);
+            if (mapaNormalSuelo) mapaNormalSuelo.repeat.copy(repetirSuelo);
+            if (mapaRugosidadSuelo) mapaRugosidadSuelo.repeat.copy(repetirSuelo);
+            if (mapaAOSuelo) mapaAOSuelo.repeat.copy(repetirSuelo);
+
             const repetirPared = new THREE.Vector2(6, 2);
-            texturaPared.repeat.copy(repetirPared); mapaNormalPared.repeat.copy(repetirPared);
-            mapaRugosidadPared.repeat.copy(repetirPared); mapaAOPared.repeat.copy(repetirPared);
-            texturaMuebles.repeat.set(1, 1); if (texturaTelefono) texturaTelefono.repeat.set(1, 1);
-            texturaMarcoVentana.repeat.set(1, 1); if (texturaGabinete) texturaGabinete.repeat.set(1, 1);
+            if (texturaPared) texturaPared.repeat.copy(repetirPared);
+            if (mapaNormalPared) mapaNormalPared.repeat.copy(repetirPared);
+            if (mapaRugosidadPared) mapaRugosidadPared.repeat.copy(repetirPared);
+            if (mapaAOPared) mapaAOPared.repeat.copy(repetirPared);
+
+            if (texturaMuebles) texturaMuebles.repeat.set(1, 1);
+            if (texturaTelefono) texturaTelefono.repeat.set(1, 1);
+            if (texturaMarcoVentana) texturaMarcoVentana.repeat.set(1, 1);
+            if (texturaGabinete) texturaGabinete.repeat.set(1, 1);
             if (texturaElectrodomestico) texturaElectrodomestico.repeat.set(1, 1);
-            texturaSueloExterior.repeat.set(16, 16); texturaTecho.repeat.set(6, 6);
+            if (texturaSueloExterior) texturaSueloExterior.repeat.set(16, 16);
+            if (texturaTecho) texturaTecho.repeat.set(6, 6);
 
-            materialSuelo = new THREE.MeshStandardMaterial({ map: texturaSuelo, normalMap: mapaNormalSuelo, roughnessMap: mapaRugosidadSuelo, aoMap: mapaAOSuelo, aoMapIntensity: 1.0 });
-            materialPared = new THREE.MeshStandardMaterial({ map: texturaPared, normalMap: mapaNormalPared, roughnessMap: mapaRugosidadPared, aoMap: mapaAOPared, aoMapIntensity: 0.8 });
-            materialMuebles = new THREE.MeshStandardMaterial({ map: texturaMuebles, roughness: 0.7, metalness: 0.2 });
-            materialMarcoVentana = new THREE.MeshStandardMaterial({ map: texturaMarcoVentana, roughness: 0.8, metalness: 0.1 });
-            materialGabinete = new THREE.MeshStandardMaterial({ map: texturaGabinete, roughness: 0.8, metalness: 0.1 });
-            materialElectrodomestico = new THREE.MeshStandardMaterial({ map: texturaElectrodomestico, roughness: 0.3, metalness: 0.4 });
+            // Materiales (usar color/valores por defecto si la textura falta)
+            materialSuelo = new THREE.MeshStandardMaterial({
+                map: texturaSuelo || null,
+                normalMap: mapaNormalSuelo || null,
+                roughnessMap: mapaRugosidadSuelo || null,
+                aoMap: mapaAOSuelo || null,
+                aoMapIntensity: texturaSuelo ? 1.0 : 0
+            });
+            materialPared = new THREE.MeshStandardMaterial({
+                map: texturaPared || null,
+                normalMap: mapaNormalPared || null,
+                roughnessMap: mapaRugosidadPared || null,
+                aoMap: mapaAOPared || null,
+                aoMapIntensity: texturaPared ? 0.8 : 0
+            });
+            materialMuebles = new THREE.MeshStandardMaterial({ map: texturaMuebles || null, roughness: 0.7, metalness: 0.2 });
+            materialMarcoVentana = new THREE.MeshStandardMaterial({ map: texturaMarcoVentana || null, roughness: 0.8, metalness: 0.1 });
+            materialGabinete = new THREE.MeshStandardMaterial({ map: texturaGabinete || null, roughness: 0.8, metalness: 0.1 });
+            materialElectrodomestico = new THREE.MeshStandardMaterial({ map: texturaElectrodomestico || null, roughness: 0.3, metalness: 0.4 });
             materialVidrio = new THREE.MeshPhysicalMaterial({ color: 0xaaaaaa, metalness: 0.1, roughness: 0.05, transmission: 0.9, transparent: true, opacity: 0.5, reflectivity: 0.3, ior: 1.5 });
-            materialSueloExterior = new THREE.MeshStandardMaterial({ map: texturaSueloExterior, roughness: 0.95, metalness: 0.0 });
-            materialTecho = new THREE.MeshStandardMaterial({ map: texturaTecho, roughness: 0.9 });
+            materialSueloExterior = new THREE.MeshStandardMaterial({ map: texturaSueloExterior || null, roughness: 0.95, metalness: 0.0 });
+            materialTecho = new THREE.MeshStandardMaterial({ map: texturaTecho || null, roughness: 0.9 });
 
-            const rutaSkybox = 'textures/skybox/';
-            const urlsSkybox = [ rutaSkybox + 'px.png', rutaSkybox + 'nx.png', rutaSkybox + 'py.png', rutaSkybox + 'ny.png', rutaSkybox + 'pz.png', rutaSkybox + 'nz.png' ];
-             try {
-                 const texturaSkybox = cargadorTexturasCubo.load(urlsSkybox, () => { escena.background = texturaSkybox; }, undefined, (err) => { console.error("Error cargando skybox:", err); escena.background = new THREE.Color(0x050510); });
-             } catch (error) { console.error("Error iniciando carga skybox:", error); escena.background = new THREE.Color(0x050510); }
+            // Skybox relativo dentro de textures/skybox/
+            const rutaSkybox = `${rutaTexturas}skybox/`;
+            const urlsSkybox = [
+                `${rutaSkybox}px.png`, `${rutaSkybox}nx.png`,
+                `${rutaSkybox}py.png`, `${rutaSkybox}ny.png`,
+                `${rutaSkybox}pz.png`, `${rutaSkybox}nz.png`
+            ];
+            try {
+                cargadorTexturasCubo.load(urlsSkybox, (texturaSkybox) => {
+                    escena.background = texturaSkybox;
+                }, undefined, (err) => {
+                    console.warn("Skybox no disponible, usando color de fondo.", err);
+                    escena.background = new THREE.Color(0x050510);
+                });
+            } catch (error) {
+                console.error("Error iniciando carga skybox:", error);
+                escena.background = new THREE.Color(0x050510);
+            }
         }
 
 
